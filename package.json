@@ -1,7 +1,7 @@
 {
   "name": "git-wip",
   "main": "./lib/git-wip",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A short description of your package",
   "repository": "https://github.com/coopermaruyama/atom-git-wip",
   "license": "MIT",
