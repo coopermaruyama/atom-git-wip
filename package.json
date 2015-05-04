@@ -2,8 +2,7 @@
   "name": "git-wip",
   "main": "./lib/git-wip",
   "version": "0.1.0",
-  "description": "Automatically create Work-in-Progress git checkpoints without
-  affecting your working tree.",
+  "description": "Automatically create Work-in-Progress git checkpoints without affecting your working tree.",
   "repository": "https://github.com/coopermaruyama/atom-git-wip",
   "license": "MIT",
   "engines": {
