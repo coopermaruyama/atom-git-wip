@@ -60,3 +60,30 @@ describe "GitWip", ->
         expect(atomGitWipElement).toBeVisible()
         atom.commands.dispatch workspaceElement, 'git-wip:toggle'
         expect(atomGitWipElement).not.toBeVisible()
+        
+  describe "node environment", ->
+    
+    it "doesnt have an empty PATH variable", ->
+      expect process.env.PATH
+        .to.not.be.empty()
+    it "should contain forward slashes and colons", ->
+      expect /.*:.*\/.*/.test(process.env.PATH)
+        .to.be true
+  describe "shell environment", ->
+    [process, stdout, stderr, exit, args, command] = []
+    
+    BeforeEach ->
+      stdout = (data) ->
+        console.log "stdout: #{data}"
+        return data
+      stderr = (output) ->
+        console.warn "stderr: #{output}"
+        return output
+      exit = (code) ->
+        console.log "exit code: #{exit}"
+        return code
+    it "fails because pending", ->
+      expect(1).to.equal 2
+  describe "git-wip:add checkpoint", ->
+    it "creates a git wip checkpoint when triggered", ->
+        expect(1).to.equal 2

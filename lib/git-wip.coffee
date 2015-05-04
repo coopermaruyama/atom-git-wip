@@ -1,6 +1,8 @@
+
 GitWipView = require './git-wip-view'
 {CompositeDisposable, BufferedProcess, NotificationManger} = require 'atom'
-
+ps = require 'child_process'
+shell = require 'shelljs'
 module.exports = GitWip =
   gitWipView: null
   modalPanel: null
@@ -13,95 +15,111 @@ module.exports = GitWip =
       default: true
       title: 'WIP on each file save'
       description: 'Creates a WIP checkpoint whenever you save a file. This is the recommended way to use this tool.'
-    wipOnSchedule:
-      type: 'boolean'
-      default: false
-      title: 'Enable WIP on specified time interval'
-    wipOnScheduleInterval:
-      type: 'integer'
-      default: 60
-      title: 'Scheduled WIP interval'
-      description: 'Amount of time in minutes between each scheduled WIP'
 
   activate: (state) ->
-    @gitWipView = new GitWipView(state.gitWipViewState)
-    @modalPanel = atom.workspace.addModalPanel(item: @gitWipView.getElement(), visible: false)
 
     # Events subscribed to in atom's system can be easily cleaned up with a CompositeDisposable
     @subscriptions = new CompositeDisposable
+    @packageName = require('../package.json').name
+    
     
     # Register event listener for file saves
-    @subscriptions.add atom.workspace.observeTextEditors (editor) =>
+    shouldWipOnSave = atom.config.get "#{@packageName}.wipOnSave"
+    if shouldWipOnSave
+      @subscriptions.add atom.workspace.observeTextEditors (editor) =>
       editor.onDidSave =>
         @doGitWip(editor.getPath())
 
     # Register command that toggles this view
-    @subscriptions.add atom.commands.add 'atom-workspace', 'git-wip:toggle': => @toggle()
-    @subscriptions.add atom.commands.add 'atom-workspace', 'git-wip:add checkpoint': => @doGitWip()
+    @subscriptions.add atom.commands.add 'atom-text-editor',
+      'git-wip:add-file-checkpoint': (event) =>
+        
+        @doGitWip @activeItemPath()
+      'git-wip:add-project-checkpoint': (event) =>
+        @doGitWip()
 
   deactivate: ->
-    @modalPanel.destroy()
-    @subscriptions.dispose()
-    @gitWipView.destroy()
+    @subscriptions?.dispose()
 
   serialize: ->
-    gitWipViewState: @gitWipView.serialize()
 
-  toggle: ->
-    console.log 'GitWip was toggled!'
-    
-    if @modalPanel.isVisible()
-      @modalPanel.hide()
-    else
-      @modalPanel.show()
+  activeItem: -> atom.workspace.activePaneItem
 
-  doGitWip: (filePath) ->
-    return unless @checkGitWipBinExists()
-    
-    pathString = (new String(filePath))
-    fileName = pathString.match(/\/([^\/]+\.\w+)$/)[0]
-    filePath = pathString.replace fileName, ""
-    # usage: git wip [ info | save <message> [ --editor | --untracked ] | log [ --pretty ] | delete ] [ [--] <file>... ]
-    command = "./git-wip"
-    args = ['save', '"atom checkpoint"', '--editor', '--', "#{filePath}"]
-    options = {}
-      # cwd: filePath
-    
-    stdout = (output) ->
-      if /fatal: Not a git repository/.test output
-        NotificationManger::addError "Not a git repo: please init!"
-      console.log 'stdout', output
-      dataStdout += output
+  activeItemPath: -> @activeItem().getPath()
+  
+  getRepos: ->
+    Promise.all(atom.project.getDirectories().map(atom.project.repositoryForDirectory.bind(atom.project)))
+  
+  getWorkingDirectories: (cb) ->
+    @getRepos().then (repositories) ->
+      workingDirectories = repositories.map (repo) -> return repo.repo.workingDirectory
+      cb.call(null, workingDirectories)
       
-    stderr = (output) ->
-      console.warn 'stderr', output
-      dataStderr += output
-      
-    exit = (code) =>
-      exited = true
-      console.debug "childprocess exited with code: #{code}"
-    
-    process = new BufferedProcess {command, args, options, stdout, stderr, exit}
-    
-    process.onWillThrowError (err) =>
-      return unless err?
-      throw new Erro("child process threw error: #{err.error} with code: #{err.error?.code}")
       
   
-  checkGitWipBinExists: ->
-    command: "which git-wip"
-    process = new BufferedProcess {command: command}
+  isFilePath: (path) ->
+    stringAfterLastSlash = path.split("/")[-1..]
+    if /\./.test stringAfterLastSlash then true else false
     
-    process.stdout.on 'data', (data) ->
-      unless data and /git-wip/.test(data)
-        throw new Error('bin git-wip not found: please install from https://github.com/bartman/git-wip and ensure it is in your bin path')
-        false
+
+  doGitWip: (path) ->
+    return @errorNoGitRepo() unless atom.project.getRepositories().length > 0
+    
+    command = "git wip save"
+    
+    
+    @getWorkingDirectories (directories) =>
+      # TODO loop if multiple projects
+      cdPath = directory = directories[0]
+      if path? and @isFilePath(path)
+        re = new RegExp directory
+        return unless re.test path
+        command += " \"Atom autosave: #{path}\" --editor -- #{path}"
       else
-        true
+        command+= " \"Atom autosave\" --editor --untracked "
+      shell.cd(cdPath)
+      pwd = shell.pwd()
+      if pwd is directory
+        child = shell.exec command, {async: true}, (code, output) ->
+          if code is 0
+            @notifyUser "git WIP checkpoint created!", "success"
+          if /error/.test output
+            throw new Error "#{output}"
+        # child.stdout.on 'data', (data) ->
+        #   console.log data
+      else
+        throw new Error "change directory led to #{pwd}"
+      
+  
+  errorNoGitRepo: -> @notifyUser "No git repo found!", "error"
+    
+  notifyUser: (message, type = "success") ->
+    if type is "success"
+      atom.notifications.addSuccess message
+    if type is "error"
+      atom.notifications.addError message
+    if type is "fatalError"
+      atom.notifications.addFatalError message
+    if type is "info"
+      atom.notifications.addInfo message
+      
+  
+  doChecksThenDoWip: (filePath) ->
+    command = "which"
+    self = this
+    stdout = (output) ->
+      unless output and /git-wip/.test(output)
+        throw new Error('bin git-wip not found: please install from https://github.com/bartman/git-wip and ensure it is in your bin path')
+      else
+        self.doGitWip(filePath if filePath?)
+    
+    exit = (code) -> console.log "which exite with #{code}"
         
+    process = new BufferedProcess {command: command, args: ["git-wip"], stdout: stdout, exit: exit}
 
       
   
 
     
   
+# random commentasdadzxczc cool making changessdkjk
