@@ -8,4 +8,5 @@
 # For more detailed documentation see
 # https://atom.io/docs/latest/behind-atom-keymaps-in-depth
 'atom-workspace':
-  'ctrl-alt-o': 'git-wip:toggle'
+  'alt-g w': 'git-wip:add-file-checkpoint'
+  'alt-cmd-g w': 'git-wip:add-project-checkpoint

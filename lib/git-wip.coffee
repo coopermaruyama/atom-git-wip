@@ -14,7 +14,7 @@ module.exports = GitWip =
       type: 'boolean'
       default: true
       title: 'WIP on each file save'
-      description: 'Creates a WIP checkpoint whenever you save a file. This is the recommended way to use this tool.'
+      description: 'Creates a WIP checkpoint whenever you save a file.'
 
   activate: (state) ->
 
