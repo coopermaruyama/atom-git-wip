@@ -45,7 +45,7 @@ module.exports = GitWip =
 
   activeItem: -> atom.workspace.getActiveTextEditor()
 
-  activeItemPath: -> @activeItem().getPath()
+  activeItemPath: -> @activeItem()?.getPath()
 
   getRepos: ->
     Promise.all(atom.project.getDirectories().map(atom.project.repositoryForDirectory.bind(atom.project)))
