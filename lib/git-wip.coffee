@@ -73,7 +73,13 @@ module.exports = GitWip =
       cdPath = directory = directories[0]
       if path? and @isFilePath(path)
         re = new RegExp directory
-        return unless re.test path
+        unless re.test path
+          messageFileNotInRepo = "The file that was saved is not part of this
+            project's git repository. Therefore no WIP checkpoint was saved.
+            If you're sure this file is part of the current project's repo,
+            make sure you don't have multiple top-level folders open."
+          @notifyUser messageFileNotInRepo, "error"
+          return
         command += " \"Atom autosave: #{path}\" --editor -- #{path}"
       else
         command+= " \"Atom autosave\" --editor --untracked "
