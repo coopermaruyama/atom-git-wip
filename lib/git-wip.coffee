@@ -86,7 +86,7 @@ module.exports = GitWip =
       shell.cd(cdPath)
       pwd = shell.pwd()
       if pwd is directory
-        child = shell.exec command, {async: true}, (code, output) ->
+        child = shell.exec command, {async: true}, (code, output) =>
           if code is 0
             @notifyUser "git WIP checkpoint created!", "success"
           if /error/.test output
