@@ -43,7 +43,7 @@ module.exports = GitWip =
 
   serialize: ->
 
-  activeItem: -> atom.workspace.activePaneItem
+  activeItem: -> atom.workspace.getActiveTextEditor()
 
   activeItemPath: -> @activeItem().getPath()
 
