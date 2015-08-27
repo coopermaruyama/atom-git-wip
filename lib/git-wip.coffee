@@ -15,6 +15,11 @@ module.exports = GitWip =
       default: true
       title: 'WIP on each file save'
       description: 'Creates a WIP checkpoint whenever you save a file.'
+    notify:
+      type: 'boolean'
+      default: true
+      title: 'Notify'
+      description: 'Display a notification every time a WIP checkpoint is created'
 
   activate: (state) ->
 
@@ -87,7 +92,7 @@ module.exports = GitWip =
       pwd = shell.pwd()
       if pwd is directory
         child = shell.exec command, {async: true}, (code, output) =>
-          if code is 0
+          if code is 0 and atom.config.get "#{@packageName}.notify"
             @notifyUser "git WIP checkpoint created!", "success"
           if /error/.test output
             throw new Error "#{output}"
