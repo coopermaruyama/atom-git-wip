@@ -24,10 +24,9 @@ module.exports = GitWip =
 
 
     # Register event listener for file saves
-    shouldWipOnSave = atom.config.get "#{@packageName}.wipOnSave"
-    if shouldWipOnSave
-      @subscriptions.add atom.workspace.observeTextEditors (editor) =>
-        editor.onDidSave (event) =>
+    @subscriptions.add atom.workspace.observeTextEditors (editor) =>
+      editor.onDidSave (event) =>
+        if atom.config.get "#{@packageName}.wipOnSave"
           @doGitWip(editor.getPath())
 
     # Register command that toggles this view
