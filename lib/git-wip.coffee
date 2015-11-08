@@ -1,24 +1,15 @@
-
-GitWipView = require './git-wip-view'
 {CompositeDisposable, BufferedProcess, NotificationManger} = require 'atom'
 cp = require 'child_process'
 shell = require 'shelljs'
 
+GitWipView = require './git-wip-view'
+Metadata = require './metadata'
+
+
 # Main Module
 module.exports = GitWip =
 
-  # Config
-  config:
-    wipOnSave:
-      type: 'boolean'
-      default: true
-      title: 'WIP on each file save'
-      description: 'Creates a WIP checkpoint whenever you save a file.'
-    notify:
-      type: 'boolean'
-      default: true
-      title: 'Notify'
-      description: 'Display a notification every time a WIP checkpoint is created'
+  config: Metadata.config
 
   activate: (state) ->
     @gitWipView = null
@@ -27,42 +18,43 @@ module.exports = GitWip =
     @packageName = require('../package.json').name
     @packagePath = atom.packages.resolvePackagePath(@packageName)
     @binPath = "#{@packagePath}/bin"
+    @debugMsgs = Metadata.messages
+
     # Events subscribed to in atom's system can be easily cleaned up with a CompositeDisposable
     @subscriptions = new CompositeDisposable
-
 
     # Register event listener for file saves
     @subscriptions.add atom.workspace.observeTextEditors (editor) =>
       editor.onDidSave (event) =>
-        if atom.config.get "#{@packageName}.wipOnSave"
-          @doGitWip(editor.getPath())
+        if @getConfig('wipOnSave') then @doGitWip(editor.getPath())
 
     # Register command that toggles this view
     @subscriptions.add atom.commands.add 'atom-text-editor',
-      'git-wip:add-file-checkpoint': (event) =>
-
-        @doGitWip @activeItemPath()
-      'git-wip:add-project-checkpoint': (event) =>
-        @doGitWip()
+      'git-wip:add-file-checkpoint': (event) => @doGitWip(@activeItemPath())
+      'git-wip:add-project-checkpoint': (event) => @doGitWip()
 
   deactivate: ->
     @subscriptions?.dispose()
 
   serialize: ->
 
+  getConfig: (name) -> atom.config.get("#{@packageName}.#{name}")
+
   activeItem: -> atom.workspace.getActiveTextEditor()
 
   activeItemPath: -> @activeItem()?.getPath()
 
   getRepos: ->
-    Promise.all(atom.project.getDirectories().map(atom.project.repositoryForDirectory.bind(atom.project)))
+    currProject = atom.project
+    repoForCurrentProject = currProject.repositoryForDirectory.bind(currProject)
+    mapProjectDirs = currProject.getDirectories().map(repoForCurrentProject)
+    Promise.all(mapProjectDirs)
 
   getWorkingDirectories: (cb) ->
     @getRepos().then (repositories) ->
-      workingDirectories = repositories.map (repo) -> return repo.repo.workingDirectory
+      workingDirectories =
+        repositories.map (repo) -> return repo.repo.workingDirectory
       cb.call(null, workingDirectories)
-
-
 
   isFilePath: (path) ->
     stringAfterLastSlash = path.split("/")[-1..]
@@ -74,24 +66,20 @@ module.exports = GitWip =
    * @return {boolean}
   ###
   validatePath: (path, directory) ->
+    # If it's empty, assume user wants to WIP the whole repo.
+    return true unless path? and @isFilePath(path)
+
     @debug "validating path: #{path}"
     @debug "isFilePath: #{@isFilePath(path)}"
-    if path? and @isFilePath(path)
-      re = new RegExp directory
-      unless re.test path
-        messageFileNotInRepo = "The file that was saved is not part of this
-          project's git repository. Therefore no WIP checkpoint was saved.
-          If you're sure this file is part of the current project's repo,
-          make sure you don't have multiple top-level folders open."
-        @notifyUser messageFileNotInRepo, "error"
-        @debug "File #{path} not part of repo - aborting..."
-        return false
-      else
-        @debug "File #{path} found in repo - continuing.."
-        return true
-    else
-      @debug "Path is directory - will WIP entire project.."
+
+    re = new RegExp(directory)
+    if re.test(path)
+      @debug("#{path} #{@debugMsgs.pathFoundInRepo}")
       return true
+    else
+      @notifyUser(@debugMsgs.fileNotFoundInRepo, "error")
+      @debug "#{path} #{@debugMsgs.pathInvalidForRepo}"
+      return false
 
   ###*
    * Create a new WIP checkpoint.
@@ -103,26 +91,38 @@ module.exports = GitWip =
     @debug "numReposInProject: #{numReposInProject}"
     return @errorNoGitRepo() unless numReposInProject isnt 0
 
-    command = "#{@binPath}/git-wip save"
+    command = "#{@binPath}/git-wip"
+    args = ["save"]
 
     @getWorkingDirectories (directories) =>
       # TODO loop if multiple projects
       cdPath = directory = directories[0]
 
-      if @validatePath(path, directory)
-        command += " \"Atom autosave: #{path}\" --editor -- #{path}"
+      if path? and @validatePath(path, directory)
+        args.push("'Atom autosave: \"#{path}\"'")
+        args.push("--editor")
+        args.push("--")
+        args.push("\"#{path}\"")
         @debug "Path is VALID. Using command: #{command}"
       else
-        command+= " \"Atom autosave\" --editor --untracked "
+        args.push("\"Atom autosave\"")
+        args.push("--editor")
+        args.push("--untracked")
         @debug "Path is INVALID. Using command: #{command}"
 
+      # Build Command
+      finalCommand = "#{command} #{args.join(' ')}"
+      @debug "finalCommand: #{finalCommand}"
+
+      # Execution
       @debug "Changing directory to #{cdPath}..."
       shell.cd(cdPath)
       pwd = shell.pwd()
       @debug "Now in directory: #{pwd}"
+
       if pwd is directory
-        @debug "Successfuly change directories. Executing: #{command}"
-        child = shell.exec command, {async: true}, (code, output) =>
+        @debug "Successfuly change directories. Executing: #{finalCommand}"
+        child = shell.exec finalCommand, {async: true}, (code, output) =>
           if code is 0 and atom.config.get "#{@packageName}.notify"
             @debug "WIP Successfully Completed!"
             @notifyUser "git WIP checkpoint created!", "success"
@@ -154,7 +154,7 @@ module.exports = GitWip =
     self = this
     stdout = (output) ->
       unless output and /git-wip/.test(output)
-        throw new Error('bin git-wip not found: please install from https://github.com/bartman/git-wip and ensure it is in your bin path')
+        throw new Error(Metadata.messages.binaryNotFound)
       else
         self.doGitWip(filePath if filePath?)
 
