@@ -2,13 +2,17 @@
 
 Git WIP automatically creates Work-in-Progress checkpoints upon saving, or when manually activated. WIP checkpoints are stored in separate branches, so they don't affect the state of your current working tree.
 
-Git WIP relies on a shell script which must be installed before you can use this package, and can be found here: https://github.com/bartman/git-wip (Big thanks to bartman for creating this very useful script!)
-
 # Installation
+*Install via settings > packages, or: `apm install git-wip`*
+
+Git WIP relies on a shell script which comes bundled with this package, but you should download it anyways to manage the WIP branches that get created.
+
+The shell script can be found here: https://github.com/bartman/git-wip (Big thanks to bartman for creating this very useful script!). You can install it with the instructions below.
+
+# Installing the `git wip` command
   1. `cd ~/your-projects`
   2. `git clone https://github.com/bartman/git-wip`
   3. `ln -s ~/your-projects/git-wip/git-wip /usr/local/bin/git-wip` (you can copy it too but this way it's easier to update)
-  4. \*Install via settings > packages, or: `apm install git-wip`
 
 
 As of right now this package can do 3 things:
