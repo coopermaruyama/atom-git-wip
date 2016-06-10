@@ -53,7 +53,8 @@ module.exports = GitWip =
   getWorkingDirectories: (cb) ->
     @getRepos().then (repositories) ->
       workingDirectories =
-        repositories.map (repo) -> return repo.repo.workingDirectory
+        repositories.map (repo) ->
+          return repo?.repo?.workingDirectory
       cb.call(null, workingDirectories)
 
   isFilePath: (path) ->
@@ -77,7 +78,8 @@ module.exports = GitWip =
       @debug("#{path} #{@debugMsgs.pathFoundInRepo}")
       return true
     else
-      @notifyUser(@debugMsgs.fileNotFoundInRepo, "error")
+      if atom.config.get "#{@packageName}.warn"
+        @notifyUser(@debugMsgs.fileNotFoundInRepo, "error")
       @debug "#{path} #{@debugMsgs.pathInvalidForRepo}"
       return false
 
@@ -172,7 +174,7 @@ module.exports = GitWip =
     @debugLog.shift() if @debugLog.length > 100
     @debugLog.push("Git Wip: #{message}")
     if atom.config.get('debug')
-      atom.notifications.addInfo "Apathy Theme: #{message}"
+      atom.notifications.addInfo "GIT WIP: #{message}"
 
   debugLog: []
   getDebugLog: -> console.log @debugLog.join("\n")

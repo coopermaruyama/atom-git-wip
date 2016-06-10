@@ -19,6 +19,11 @@ config:
     default: true
     title: 'Notify'
     description: 'Display a notification every time a WIP checkpoint is created'
+  warn:
+    type: 'boolean'
+    default: true
+    title: 'Enable warning'
+    description: 'Display a warning when saving files outside of a valid repository'
 
 
 # Export
